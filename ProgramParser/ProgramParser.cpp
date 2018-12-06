@@ -361,56 +361,62 @@ State ProgramParser::Sentence() {
 		}
 		case 36: {  //∏≥÷µæ‰
 			Statement();
+			temp.chain.clear();
+			temp.chain.push_back(0);
 			break;
 		}
 		case 15: { //if”Ôæ‰
 			getNextToken();
-			temp.codebegin = address;
 			int a = address;
 			temp = bool_exp();
-			backpatch(temp.True, a);
+			backpatch(temp.True, address);
+			temp.chain = temp.False;
 			if (nowToken.getType() != 29) { // then
 				cout << "Missing keyword 'then'!" << endl;
 				system("pause");
 				exit(0);
 			}
 			else {
-				Sentence();
-				temp.True.push_back(Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("0", 0)));
-				int idx = temp.False[temp.False.size() - 1];
-				TacList[idx][3].setContent(to_string(address));
 
+				State temp2 = Sentence();
+				Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0));
+				temp.chain = temp.merge(temp.chain, temp2.chain);
 				if (nowToken.getType() == 11) { //else
-					backpatch(temp.False, address);
-					Sentence();
-					int idx = temp.False[temp.False.size() - 1];
-					TacList[idx][3].setContent(to_string(address));
+					backpatch(temp.chain, address);
+					temp.chain = temp.merge(vector<int>(address),temp2.chain);
+					temp2 = Sentence();
+					temp.chain = temp.merge(temp.chain, temp2.chain);
 				}
+				
 			}		
-			
+			//backpatch(temp.True,address);
 			break;
 		}
 		case 34: { //while ”Ôæ‰
 			getNextToken();
 			temp.codebegin = address;
 			temp = bool_exp();
+			
+			
 			if (nowToken.getType() == 10) { // do
-				Sentence();
+				backpatch(temp.True, address);
+				temp.chain = temp.False;
+				State temp2 = Sentence();
+				backpatch(temp2.chain, temp.codebegin);
 			}
 			Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token(to_string(temp.codebegin), 0));
 			backpatch(temp.False, address);
-			int idx = temp.False[temp.False.size() - 1];
-			TacList[idx][3].setContent(to_string(address));
 			break;
 		}
 		case 26: {//repeat”Ôæ‰
 			temp.codebegin = address;
-			Sentence();
+			State t = Sentence();
+			backpatch(t.chain, address);
 			if (nowToken.getType() == 32) { // until
 				getNextToken();
 				State temp_state = bool_exp();
-				int idx = temp_state.False[temp_state.False.size() - 1];
-				TacList[idx][3].setContent(to_string(temp.codebegin));
+				backpatch(temp_state.False, temp.codebegin);
+				temp.chain = temp_state.True;
 			}
 			else {
 				cout << "error" << endl;
@@ -628,15 +634,15 @@ Token ProgramParser::arithmetic() {
 
 State ProgramParser::bool_exp() {
 	State temp;
+	temp.codebegin = address;
 	State temp1 = bool_term();
 	getNextToken();
 	if (nowToken.getType() == 20) { //or
 		State temp2;
 		temp2 = bool_exp();
 		backpatch(temp1.False, temp2.codebegin);
-		temp.codebegin = temp2.codebegin;
+		temp.codebegin = temp1.codebegin;
 		temp.True = temp.merge(temp1.True, temp2.True);
-		temp.False.clear();
 		temp.False = temp2.False;
 	}
 	else {
@@ -650,10 +656,11 @@ State ProgramParser::bool_term() {
 	State temp1 = bool_factor();
 	if (nowToken.getType() == 1) {  //and
 		State temp2;
-		getNextToken(); 
+		getNextToken();
+		getNextToken();
 		temp2 = bool_term();
 		backpatch(temp1.True, temp2.codebegin);
-		temp.codebegin = temp2.codebegin;
+		temp.codebegin = temp1.codebegin;
 		temp.True = temp2.True;
 		temp.False = temp.merge(temp1.False, temp2.False);
 	}
@@ -661,15 +668,14 @@ State ProgramParser::bool_term() {
 		temp = temp1;
 	}
 	return temp;
-
 }
 State ProgramParser::bool_factor() {
 	State temp;
 	if (nowToken.getType() == 18) { //bool_factor -> not bool_factor
 		State temp1 = bool_factor();
+		temp.True = temp1.False;
+		temp.False = temp1.True;
 		temp.codebegin = temp1.codebegin;
-		temp1.swapChain();
-		temp = temp1;
 	}
 	else {
 		temp = bool_quan();
@@ -678,37 +684,46 @@ State ProgramParser::bool_factor() {
 
 }
 State ProgramParser::bool_quan() {
-	State temp = State();
-	temp.codebegin = address;
+	State temp;
 	if (nowToken.getVarType() == BOOL) {
-		temp.True.push_back(Tacpushback(Token("jnz", 0), Token("-", 0), Token("-", 0), Token("-", 0)));
-		temp.False.push_back(Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0)));
+		Tacpushback(Token("jnz", 0), Token("-", 0), Token("-", 0), Token("-", 0));
+		Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0));
 		return temp;
 	}
 	else {
 		switch (nowToken.getType()) {
 			case 31: { //true
-				temp.True.push_back(Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0)));
-				//temp.codebegin = address;
+				Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0));
+				temp.True.clear();
+				temp.True.push_back(address);
+				temp.codebegin = address;
 				break;
 			}
 			case 13: { //false
-				temp.False.push_back(Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0)));
-				//temp.codebegin = address;
+				Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0));
+				temp.True.clear();
+				temp.False.push_back(address);
+				temp.codebegin = address;
 				break;
 			}
 			case 36: { //±Í ∂∑˚
 				Token_index--;
-				temp.codebegin = address;
 				Token t1;
+				int a = address;
 				t1 = Cal_exp();
 				if (nowToken.getType() >= 53 && nowToken.getType() <= 58) {
 					Token op = nowToken;
 					Token t2;
 					t2 = Cal_exp();
 					Token_index--;
-					temp.True.push_back(Tacpushback(Token("j" + op.getContent(), 0), t1, t2, Token("-", 0)));
-					temp.False.push_back(Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0)));
+					Tacpushback(Token("j" + op.getContent(), 0), t1, t2, Token("-", 0));
+					Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0));
+					temp.True.clear();
+					temp.True.push_back(a);
+					temp.codebegin = a;
+					temp.False.clear();
+					temp.False.push_back(a+1);
+					return temp;
 				}
 				else {
 					cout << "wrong op" << endl;
@@ -720,8 +735,8 @@ State ProgramParser::bool_quan() {
 			}
 			case 37: {  // ˝◊÷
 				Token_index--;
-				temp.codebegin = address;
 				Token t1,t2;
+				int a = address;
 				t1 = Cal_exp();
 				getNextToken();
 				if (nowToken.getType() >= 53 && nowToken.getType() <= 58) {
@@ -729,8 +744,13 @@ State ProgramParser::bool_quan() {
 					Token t2;
 					t2 = Cal_exp();
 					Token_index--;
-					temp.True.push_back(Tacpushback(Token("j" + op.getContent(), 0), t1, t2, Token("-", 0)));
-					temp.False.push_back(Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0)));
+					Tacpushback(Token("j" + op.getContent(), 0), t1, t2, Token("-", 0));
+					Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0));
+					temp.True.clear();
+					temp.True.push_back(a);
+					temp.codebegin = a;
+					temp.False.clear();
+					temp.False.push_back(a + 1);
 				}
 				else {
 					cout << "error" << endl;
@@ -785,6 +805,21 @@ int ProgramParser::Tacpushback(Token t1, Token t2, Token t3, Token t4) {
 }
 
 void ProgramParser::printTacList() {
+
+	/*for (auto &element : TacList) {
+		int idx;
+		auto nextJump = element;
+		while (nextJump[0].getContent() == "j") {
+			stringstream ss;
+			ss << nextJump[3].getContent();
+			ss >> idx;
+			nextJump = TacList[idx];
+		}
+		if (element[0].getContent() == "j") {
+			element[3].setContent(to_string(idx));
+		}
+	}*/
+
 	cout << TacList.size() << endl;
 	for (int i = 0; i < TacList.size(); ++i) {
 		cout << "(" << setw(2) << i << ") ";

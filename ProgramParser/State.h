@@ -7,6 +7,7 @@ public:
 	~State();
 	std::vector<int> True;
 	std::vector<int> False;
+	std::vector<int> chain;
 	int codebegin;
 	void addTrueChain(State &st);
 	void addFalseChain(State &st);

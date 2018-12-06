@@ -6,6 +6,7 @@
 #include <iomanip>
 #include <map>
 #include <fstream>
+#include <sstream>
 #include "Token.h"
 #include "global.h"
 #include "State.h"
