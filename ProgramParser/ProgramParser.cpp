@@ -306,6 +306,10 @@ int ProgramParser::getNextToken() {
 		nowToken = TokenList[Token_index];
 		Token_index++;
 	}
+	for (auto e : this->VarList) {
+		if (e.getContent() == nowToken.getContent())
+			e.setVarType(nowToken.getVarType());
+	}
 	return Token_index-1;
 }
 
@@ -383,9 +387,11 @@ State ProgramParser::Sentence() {
 				temp.chain = temp.merge(temp.chain, temp2.chain);
 				if (nowToken.getType() == 11) { //else
 					backpatch(temp.chain, address);
-					temp.chain = temp.merge(vector<int>(address),temp2.chain);
+					temp2.chain.push_back(address-1);
+					temp.chain = temp2.chain;
 					temp2 = Sentence();
 					temp.chain = temp.merge(temp.chain, temp2.chain);
+					backpatch(temp.chain, address);
 				}
 				
 			}		
@@ -688,6 +694,7 @@ State ProgramParser::bool_quan() {
 	if (nowToken.getVarType() == BOOL) {
 		Tacpushback(Token("jnz", 0), Token("-", 0), Token("-", 0), Token("-", 0));
 		Tacpushback(Token("j", 0), Token("-", 0), Token("-", 0), Token("-", 0));
+		getNextToken();
 		return temp;
 	}
 	else {
@@ -726,9 +733,7 @@ State ProgramParser::bool_quan() {
 					return temp;
 				}
 				else {
-					cout << "wrong op" << endl;
-					system("pause");
-					exit(0);
+					Token_index--;
 				}
 				
 				break;
